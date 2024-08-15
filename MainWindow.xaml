@@ -1,0 +1,28 @@
+﻿<Window x:Class="iRacingStages.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:iRacingStages"
+        mc:Ignorable="d"
+        Title="iRacing Stages" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize" Closing="Window_Closing">
+    <Grid Margin="5,5,5,5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,1,0,1">
+            <Label Content="Number of laps for stage 1"/>
+            <TextBox x:Name="stage1LapCountTextBox" Text="30" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="stage1LapCountTextBox_TextChanged"/>
+        </StackPanel>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,1,0,1">
+            <Label Content="Number of laps for stage 2"/>
+            <TextBox x:Name="stage2LapCountTextBox" Text="30" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="stage2LapCountTextBox_TextChanged"/>
+        </StackPanel>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,1,0,1">
+            <Label Content="Throw flag after this number of cars crosses the finish line"/>
+            <TextBox x:Name="numCarsToWaitForTextBox" Text="10" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="numCarsToWaitForTextBox_TextChanged"/>
+        </StackPanel>
+    </Grid>
+</Window>

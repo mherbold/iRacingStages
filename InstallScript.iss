@@ -1,6 +1,6 @@
 [Setup]
 AppName=iRacingStages
-AppVersion=1.0
+AppVersion=1.2
 AppCopyright=Created by Marvin Herbold
 AppPublisher=Marvin Herbold
 AppPublisherURL=https://herboldracing.com/iracing-tv

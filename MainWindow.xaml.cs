@@ -2,13 +2,16 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 
 using HerboldRacing;
+
+#pragma warning disable CS8602
+#pragma warning disable CS8604
 
 namespace iRacingStages
 {
@@ -18,31 +21,50 @@ namespace iRacingStages
 
 		public static readonly string documentsFolder = Environment.GetFolderPath( Environment.SpecialFolder.MyDocuments ) + $"\\{AppName}\\";
 
-		private readonly Regex numbersOnlyRegex = MyRegex();
+		private readonly Regex numbersOnlyRegex = NumbersOnlyRegex();
 
-		[GeneratedRegex( "^[1-9][0-9]?[0-9]?$" )]
-		private static partial Regex MyRegex();
+		[GeneratedRegex( @"^[1-9][0-9]?[0-9]?$" )]
+		private static partial Regex NumbersOnlyRegex();
+
+		private readonly Regex trackLengthRegex = TrackLengthRegex();
+
+		[GeneratedRegex( @"([-+]?[0-9]*\.?[0-9]+)" )]
+		private static partial Regex TrackLengthRegex();
 
 		readonly IRSDKSharper irsdk = new();
 
 		int stage1LapCount = 30;
 		int stage2LapCount = 30;
+		int stage3LapCount = 30;
 		int numCarsToWaitFor = 10;
 
 		bool initialized = false;
+
+		IntPtr? windowHandle = null;
+
+		IRacingSdkDatum? sessionNumDatum = null;
+		IRacingSdkDatum? sessionFlagsDatum = null;
 		IRacingSdkDatum? carIdxLapCompletedDatum = null;
 		IRacingSdkDatum? carIdxLapDistPctDatum = null;
 		IRacingSdkDatum? carIdxPositionDatum = null;
+		IRacingSdkDatum? carIdxOnPitRoadDatum = null;
+
+		string sessionType = string.Empty;
 		int currentStage = 0;
+		int completedLaps = 0;
 		int numWinnersSoFar = 0;
-		int[] stageWinners = new int[ IRacingSdkConst.MaxNumCars ];
+		readonly int[] stageWinnerCarIdxList = new int[ IRacingSdkConst.MaxNumCars ];
+		bool lastStageLapWarningShown = false;
+
+		readonly List<string> chatMessageQueue = [];
+		bool chatWindowOpened = false;
 
 		[DllImport( "user32.dll", SetLastError = true )]
 		static extern IntPtr FindWindow( string? lpClassName, string lpWindowName );
 
-		[DllImport( "user32.dll" )]
 		[return: MarshalAs( UnmanagedType.Bool )]
-		static extern bool SetForegroundWindow( IntPtr hWnd );
+		[DllImport( "user32.dll", SetLastError = true, CharSet = CharSet.Auto )]
+		static extern bool PostMessage( IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam );
 
 		public MainWindow()
 		{
@@ -78,242 +100,412 @@ namespace iRacingStages
 
 			var sessionInfo = irsdk.Data.SessionInfo;
 
-			if ( ( sessionInfo == null ) || ( sessionInfo.SessionInfo == null ) )
+			// maybe session info is not ready yet - check for that
+
+			if ( sessionInfo.SessionInfo == null )
 			{
+				UpdateStatusBar();
+
 				return;
 			}
 
-			// initialize stuff
+			// one time initialization
 
 			if ( !initialized )
 			{
 				initialized = true;
 
+				windowHandle = FindWindow( null, "iRacing.com Simulator" );
+
+				sessionNumDatum = irsdk.Data.TelemetryDataProperties[ "SessionNum" ];
+				sessionFlagsDatum = irsdk.Data.TelemetryDataProperties[ "SessionFlags" ];
 				carIdxLapCompletedDatum = irsdk.Data.TelemetryDataProperties[ "CarIdxLapCompleted" ];
 				carIdxLapDistPctDatum = irsdk.Data.TelemetryDataProperties[ "CarIdxLapDistPct" ];
 				carIdxPositionDatum = irsdk.Data.TelemetryDataProperties[ "CarIdxPosition" ];
+				carIdxOnPitRoadDatum = irsdk.Data.TelemetryDataProperties[ "CarIdxOnPitRoad" ];
 			}
 
-			// make sure we are in a race session
+			// don't do anything if we are not in the race session
 
-			var sessionNumber = irsdk.Data.GetInt( "SessionNum" );
+			var sessionNumber = irsdk.Data.GetInt( sessionNumDatum );
 
-			if ( sessionInfo.SessionInfo.Sessions[ sessionNumber ].SessionType != "Race" )
+			sessionType = sessionInfo.SessionInfo.Sessions[ sessionNumber ].SessionType;
+
+			if ( sessionType != "Race" )
 			{
+				UpdateStatusBar();
+
 				return;
 			}
 
-			// make sure we are in stage 1 or 2
+			// process chat message queue
 
-			if ( currentStage >= 2 )
+			ProcessChatMessageQueue();
+
+			// get session flags
+
+			var sessionFlags = irsdk.Data.GetBitField( sessionFlagsDatum );
+
+			// get a list of the laps completed for all cars
+
+			int[] carIdxLapCompletedList = new int[ carIdxLapCompletedDatum.Count ];
+
+			irsdk.Data.GetIntArray( carIdxLapCompletedDatum, carIdxLapCompletedList, 0, carIdxLapCompletedDatum.Count );
+
+			// get a list of the lap dist pct for all cars
+
+			float[] carIdxLapDistPctList = new float[ carIdxLapDistPctDatum.Count ];
+
+			irsdk.Data.GetFloatArray( carIdxLapDistPctDatum, carIdxLapDistPctList, 0, carIdxLapDistPctDatum.Count );
+
+			// get a list of the pit road status for all cars
+
+			bool[] carIdxOnPitRoadList = new bool[ carIdxOnPitRoadDatum.Count ];
+
+			irsdk.Data.GetBoolArray( carIdxOnPitRoadDatum, carIdxOnPitRoadList, 0, carIdxOnPitRoadDatum.Count );
+
+			// find the pace car
+
+			int paceCarIdx = -1;
+
+			foreach ( var driver in sessionInfo.DriverInfo.Drivers )
 			{
-				return;
-			}
-
-			//
-
-			if ( carIdxLapCompletedDatum != null && carIdxLapDistPctDatum != null && carIdxPositionDatum != null )
-			{
-				// figure out which lap we are looking for
-
-				var targetLap = ( currentStage == 0 ) ? stage1LapCount : stage1LapCount + stage2LapCount;
-
-				// get a list of the laps completed for all cars
-
-				int[] carIdxLapCompletedList = new int[ carIdxLapCompletedDatum.Count ];
-
-				irsdk.Data.GetIntArray( carIdxLapCompletedDatum, carIdxLapCompletedList, 0, carIdxLapCompletedDatum.Count );
-
-				// get a list of the lap dist pct for all cars
-
-				float[] carIdxLapDistPctList = new float[ carIdxLapDistPctDatum.Count ];
-
-				irsdk.Data.GetFloatArray( carIdxLapDistPctDatum, carIdxLapDistPctList, 0, carIdxLapDistPctDatum.Count );
-
-				// remove cars we've already recognized as winners
-
-				for ( var i = 0; i < numWinnersSoFar; i++ )
+				if ( ( driver.CarIdx >= 0 ) && ( driver.CarIdx < carIdxLapCompletedList.Length ) )
 				{
-					carIdxLapCompletedList[ stageWinners[ i ] ] = -1;
+					if ( driver.CarIsPaceCar == 1 )
+					{
+						paceCarIdx = driver.CarIdx;
+						break;
+					}
+				}
+			}
+
+			// remove pace car from the list
+
+			if ( paceCarIdx != -1 )
+			{
+				carIdxLapCompletedList[ paceCarIdx ] = -1;
+			}
+
+			// remove cars that are on pit road
+
+			for ( var carIdx = 0; carIdx < carIdxOnPitRoadList.Length; carIdx++ )
+			{
+				if ( carIdxOnPitRoadList[ carIdx ] )
+				{
+					carIdxLapCompletedList[ carIdx ] = -1;
+				}
+			}
+
+			// remove spectators from the list
+
+			foreach ( var driver in sessionInfo.DriverInfo.Drivers )
+			{
+				if ( ( driver.CarIdx >= 0 ) && ( driver.CarIdx < carIdxLapCompletedList.Length ) )
+				{
+					if ( driver.IsSpectator == 1 )
+					{
+						carIdxLapCompletedList[ driver.CarIdx ] = -1;
+					}
+				}
+			}
+
+			// if we are in the final stage then stop here
+
+			if ( currentStage == 3 )
+			{
+				Dispatcher.BeginInvoke( () =>
+				{
+					Close();
+				} );
+
+				return;
+			}
+
+			// figure out which lap we are targeting for this stage
+
+			int previousStageLaps = 0;
+			int thisStageLaps = 0;
+
+			switch ( currentStage )
+			{
+				case 0:
+					previousStageLaps = 0;
+					thisStageLaps = stage1LapCount;
+					break;
+
+				case 1:
+					previousStageLaps = stage1LapCount;
+					thisStageLaps = stage2LapCount;
+					break;
+
+				case 2:
+					previousStageLaps = stage1LapCount + stage2LapCount;
+					thisStageLaps = stage3LapCount;
+					break;
+			}
+
+			var targetLap = previousStageLaps + thisStageLaps;
+
+			// if laps is set to 0 for this stage then skip to the next stage
+
+			if ( thisStageLaps == 0 )
+			{
+				currentStage++;
+
+				UpdateStatusBar();
+
+				return;
+			}
+
+			// reset completed laps
+
+			completedLaps = 0;
+
+			// remove cars we've already recognized as winners
+
+			for ( var stageWinnerIdx = 0; stageWinnerIdx < numWinnersSoFar; stageWinnerIdx++ )
+			{
+				carIdxLapCompletedList[ stageWinnerCarIdxList[ stageWinnerIdx ] ] = -1;
+			}
+
+			// go through cars and add more winners to the list if there are any
+
+			do
+			{
+				var highestLapDistPct = 0.0f;
+				var nextWinnerCarIdx = -1;
+
+				for ( var carIdx = 0; carIdx < carIdxLapCompletedDatum.Count; carIdx++ )
+				{
+					if ( carIdxLapCompletedList[ carIdx ] > completedLaps )
+					{
+						completedLaps = carIdxLapCompletedList[ carIdx ];
+					}
+
+					if ( carIdxLapCompletedList[ carIdx ] >= targetLap )
+					{
+						if ( carIdxLapDistPctList[ carIdx ] > highestLapDistPct )
+						{
+							highestLapDistPct = carIdxLapDistPctList[ carIdx ];
+							nextWinnerCarIdx = carIdx;
+						}
+					}
 				}
 
-				// go through cars and add more winners to the list if there are any
-
-				do
+				if ( nextWinnerCarIdx == -1 )
 				{
-					var highestLapDistPct = 0.0f;
-					var nextWinner = -1;
+					break;
+				}
+				else
+				{
+					stageWinnerCarIdxList[ numWinnersSoFar ] = nextWinnerCarIdx;
 
-					for ( var i = 0; i < carIdxLapCompletedDatum.Count; i++ )
+					numWinnersSoFar++;
+
+					carIdxLapCompletedList[ nextWinnerCarIdx ] = -1;
+
+					if ( numWinnersSoFar >= numCarsToWaitFor )
 					{
-						if ( carIdxLapCompletedList[ i ] >= targetLap )
+						break;
+					}
+				}
+			}
+			while ( true );
+
+			// if we are on the last stage lap then warn the drivers
+
+			if ( completedLaps == ( targetLap - 1 ) )
+			{
+				if ( !lastStageLapWarningShown )
+				{
+					lastStageLapWarningShown = true;
+
+					chatMessageQueue.Add( $"/all Final lap for stage {currentStage + 1}!\r" );
+				}
+			}
+
+			// if we've reached our target number of winners then throw the caution flag
+
+			if ( numWinnersSoFar >= numCarsToWaitFor )
+			{
+				// advance to the next stage
+
+				currentStage++;
+
+				// are we already under caution?
+
+				if ( ( sessionFlags & ( (uint) IRacingSdkEnum.Flags.Caution | (uint) IRacingSdkEnum.Flags.CautionWaving ) ) != 0 )
+				{
+					// yes - use positions from iracing instead of ours
+
+					int[] carIdxPositionList = new int[ carIdxPositionDatum.Count ];
+
+					irsdk.Data.GetIntArray( carIdxPositionDatum, carIdxPositionList, 0, carIdxPositionDatum.Count );
+
+					for ( int stageWinnerIdx = 0; stageWinnerIdx < numCarsToWaitFor; stageWinnerIdx++ )
+					{
+						var position = stageWinnerIdx + 1;
+
+						for ( int carIdx = 0; carIdx < carIdxPositionList.Length; carIdx++ )
 						{
-							if ( carIdxLapDistPctList[ i ] > highestLapDistPct )
+							if ( carIdxPositionList[ carIdx ] == position )
 							{
-								highestLapDistPct = carIdxLapDistPctList[ i ];
-								nextWinner = i;
+								stageWinnerCarIdxList[ stageWinnerIdx ] = carIdx;
+								break;
 							}
 						}
 					}
 
-					if ( nextWinner == -1 )
+					// tell drivers the stage is complete
+
+					chatMessageQueue.Add( $"/all Stage {currentStage} complete!\r" );
+				}
+				else
+				{
+					// throw the caution flag
+
+					chatMessageQueue.Add( $"!y Stage {currentStage} complete!\r" );
+				}
+
+				// convert stage winners array into a text string for admin chat
+
+				var stageWinnersAdminChatText = $"Stage {currentStage}:";
+
+				for ( var stageWinnerIdx = 0; stageWinnerIdx < numCarsToWaitFor; stageWinnerIdx++ )
+				{
+					var position = stageWinnerIdx + 1;
+
+					foreach ( var driver in sessionInfo.DriverInfo.Drivers )
 					{
-						break;
-					}
-					else
-					{
-						stageWinners[ numWinnersSoFar ] = nextWinner;
-
-						numWinnersSoFar++;
-
-						Debug.WriteLine( $"Position {numWinnersSoFar} stage winner = {nextWinner}" );
-
-						carIdxLapCompletedList[ nextWinner ] = -1;
-
-						if ( numWinnersSoFar >= numCarsToWaitFor )
+						if ( driver.CarIdx == stageWinnerCarIdxList[ stageWinnerIdx ] )
 						{
+							var carNumberRaw = driver.CarNumberRaw;
+
+							stageWinnersAdminChatText += $" {position}-{carNumberRaw}";
+
 							break;
 						}
 					}
 				}
-				while ( true );
 
-				// if we've reached our target number of winners then throw the caution flag
+				// announce who the winners are
 
-				if ( numWinnersSoFar >= numCarsToWaitFor )
+				chatMessageQueue.Add( $"/all {stageWinnersAdminChatText}\r" );
+
+				// save stage winners to file
+
+				if ( !Directory.Exists( documentsFolder ) )
 				{
-					// advance to the next stage
+					Directory.CreateDirectory( documentsFolder );
+				}
 
-					currentStage++;
+				var stageWinnersFileText = $"Stage {currentStage} winners:\r\n\r\n";
 
-					Debug.WriteLine( $"Stage {currentStage} complete!" );
+				for ( var stageWinnerIdx = 0; stageWinnerIdx < numCarsToWaitFor; stageWinnerIdx++ )
+				{
+					var position = stageWinnerIdx + 1;
 
-					// are we already under caution?
-
-					var sessionFlags = irsdk.Data.GetBitField( "SessionFlags" );
-
-					if ( ( sessionFlags & ( (uint) IRacingSdkEnum.Flags.Caution | (uint) IRacingSdkEnum.Flags.CautionWaving ) ) != 0 )
+					foreach ( var driver in sessionInfo.DriverInfo.Drivers )
 					{
-						// yes - use positions from iracing instead of ours
-						Debug.WriteLine( $"!!!ALREADY UNDER CAUTION!!!" );
-
-						int[] carIdxPositionList = new int[ carIdxPositionDatum.Count ];
-
-						irsdk.Data.GetIntArray( carIdxPositionDatum, carIdxPositionList, 0, carIdxPositionDatum.Count );
-
-						for ( int i = 0; i < numCarsToWaitFor; i++ )
+						if ( driver.CarIdx == stageWinnerCarIdxList[ stageWinnerIdx ] )
 						{
-							var position = i + 1;
+							var carNumberRaw = driver.CarNumberRaw;
+							var driverName = driver.UserName;
 
-							for ( int j = 0; i < carIdxPositionList.Length; j++ )
-							{
-								if ( carIdxPositionList[ j ] == position )
-								{
-									stageWinners[ i ] = j;
-									break;
-								}
-							}
+							stageWinnersFileText += $"P{position}: #{carNumberRaw} - {driverName}\r\n";
+
+							break;
 						}
-					}
-
-					// throw the caution flag
-
-					Debug.WriteLine( $"Throwing caution flag." );
-
-					SendChatMessage( $"!y Stage {currentStage} complete!\r" );
-
-					// convert stage winners array into a text string for the chat
-
-					var stageWinnersAsText = "";
-
-					for ( var i = 0; i < numCarsToWaitFor; i++ )
-					{
-						var position = i + 1;
-
-						foreach ( var driver in sessionInfo.DriverInfo.Drivers )
-						{
-							if ( driver.CarIdx == stageWinners[ i ] )
-							{
-								var carNumberRaw = driver.CarNumberRaw;
-
-								stageWinnersAsText += $" {position}-{carNumberRaw}";
-
-								break;
-							}
-						}
-					}
-
-					// announce who the winners are
-
-					Debug.WriteLine( $"Winners are:{stageWinnersAsText}" );
-
-					SendChatMessage( $"/all Stage {currentStage}:{stageWinnersAsText}\r" );
-
-					// save stage winners to file
-
-					if ( !Directory.Exists( documentsFolder ) )
-					{
-						Directory.CreateDirectory( documentsFolder );
-					}
-
-					var stageWinnersFileText = $"Stage {currentStage} winners:\r\n\r\n";
-
-					for ( var i = 0; i <= numCarsToWaitFor; i++ )
-					{
-						var position = i + 1;
-
-						foreach ( var driver in sessionInfo.DriverInfo.Drivers )
-						{
-							if ( driver.CarIdx == stageWinners[ i ] )
-							{
-								var carNumberRaw = driver.CarNumberRaw;
-								var driverName = driver.UserName;
-
-								stageWinnersFileText += $"P{position}: #{carNumberRaw} - {driverName}\r\n";
-
-								break;
-							}
-						}
-					}
-
-					stageWinnersFileText += "\r\n\r\n";
-
-					var sessionUniqueID = irsdk.Data.GetInt( "SessionUniqueID" );
-
-					var stageWinnersPath = $"{documentsFolder}{sessionUniqueID}.txt";
-
-					File.AppendAllText( stageWinnersPath, stageWinnersFileText );
-
-					// reset stuff for the next stage
-
-					numWinnersSoFar = 0;
-
-					// exit the app if we are all done
-
-					if ( currentStage == 2 )
-					{
-						Debug.WriteLine( $"Stage 2 is done - exiting app..." );
-
-						Dispatcher.BeginInvoke( () =>
-						{
-							Close();
-						} );
 					}
 				}
+
+				stageWinnersFileText += "\r\n";
+
+				var sessionUniqueID = irsdk.Data.GetInt( "SessionUniqueID" );
+
+				var stageWinnersPath = $"{documentsFolder}{sessionUniqueID}.txt";
+
+				File.AppendAllText( stageWinnersPath, stageWinnersFileText );
+
+				// reset stuff for the next stage
+
+				numWinnersSoFar = 0;
+				lastStageLapWarningShown = false;
 			}
+
+			UpdateStatusBar();
 		}
 
-		private void SendChatMessage( string chatMessage )
+		private void UpdateStatusBar()
 		{
-			var windowHandle = (IntPtr?) FindWindow( null, "iRacing.com Simulator" );
-
-			if ( windowHandle != null )
+			Dispatcher.BeginInvoke( () =>
 			{
-				SetForegroundWindow( (IntPtr) windowHandle );
+				currentStageLabel.Content = $"Current stage: {currentStage + 1}";
+				completedLapsLabel.Content = $"Completed laps: {completedLaps}";
+				carsFinishedLabel.Content = $"Cars finished: {numWinnersSoFar}";
 
-				irsdk.ChatComand( IRacingSdkEnum.ChatCommandMode.BeginChat, 0 );
+				if ( irsdk.IsConnected )
+				{
+					if ( sessionType == "Race" )
+					{
+						connectionLabel.Content = $"{sessionType} 😊";
+						connectionLabel.Foreground = new SolidColorBrush( System.Windows.Media.Color.FromRgb( 0, 127, 0 ) );
+					}
+					else
+					{
+						connectionLabel.Content = $"{sessionType} 😑";
+						connectionLabel.Foreground = new SolidColorBrush( System.Windows.Media.Color.FromRgb( 63, 63, 0 ) );
+					}
+				}
+				else
+				{
+					connectionLabel.Content = "NOT CONNECTED 😞";
+					connectionLabel.Foreground = new SolidColorBrush( System.Windows.Media.Color.FromRgb( 127, 0, 0 ) );
+				}
+			} );
+		}
 
-				SendKeys.SendWait( chatMessage );
+		private void ProcessChatMessageQueue()
+		{
+			if ( chatMessageQueue.Count > 0 )
+			{
+				if ( chatWindowOpened )
+				{
+					if ( windowHandle != null )
+					{
+						string chatMessage = chatMessageQueue[ 0 ];
+
+						Debug.WriteLine( $"Sending chat message: {chatMessage}" );
+
+						foreach ( var ch in chatMessage )
+						{
+							PostMessage( (IntPtr) windowHandle, 0x0102, ch, 0 );
+						}
+					}
+
+					chatMessageQueue.RemoveAt( 0 );
+
+					if ( chatMessageQueue.Count > 0 )
+					{
+						chatWindowOpened = false;
+					}
+				}
+				else
+				{
+					irsdk.ChatComand( IRacingSdkEnum.ChatCommandMode.BeginChat, 0 );
+
+					chatWindowOpened = true;
+				}
+			}
+			else
+			{
+				if ( chatWindowOpened )
+				{
+					irsdk.ChatComand( IRacingSdkEnum.ChatCommandMode.Cancel, 0 );
+
+					chatWindowOpened = false;
+				}
 			}
 		}
 
@@ -343,6 +535,16 @@ namespace iRacingStages
 			if ( !int.TryParse( textBox.Text, out stage2LapCount ) )
 			{
 				stage2LapCount = 30;
+			}
+		}
+
+		private void stage3LapCountTextBox_TextChanged( object sender, System.Windows.Controls.TextChangedEventArgs e )
+		{
+			var textBox = (System.Windows.Controls.TextBox) sender;
+
+			if ( !int.TryParse( textBox.Text, out stage3LapCount ) )
+			{
+				stage3LapCount = 30;
 			}
 		}
 

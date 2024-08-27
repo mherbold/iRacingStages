@@ -5,24 +5,63 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:iRacingStages"
         mc:Ignorable="d"
-        Title="iRacing Stages" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize" Closing="Window_Closing">
-    <Grid Margin="5,5,5,5">
+        Title="iRacingStages v1.2" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize" Closing="Window_Closing" Topmost="True" WindowStartupLocation="CenterScreen">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,1,0,1">
-            <Label Content="Number of laps for stage 1"/>
-            <TextBox x:Name="stage1LapCountTextBox" Text="30" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="stage1LapCountTextBox_TextChanged"/>
-        </StackPanel>
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,1,0,1">
-            <Label Content="Number of laps for stage 2"/>
-            <TextBox x:Name="stage2LapCountTextBox" Text="30" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="stage2LapCountTextBox_TextChanged"/>
-        </StackPanel>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,1,0,1">
-            <Label Content="Throw flag after this number of cars crosses the finish line"/>
-            <TextBox x:Name="numCarsToWaitForTextBox" Text="10" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="numCarsToWaitForTextBox_TextChanged"/>
-        </StackPanel>
+        <Grid Grid.Row="0" Background="#FFF0F0F0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Label x:Name="currentStageLabel" Grid.Column="0" Content="Current stage: 1" FontSize="10"/>
+                <Label x:Name="completedLapsLabel" Grid.Column="1" Content="Completed laps: 0" FontSize="10"/>
+                <Label x:Name="carsFinishedLabel" Grid.Column="2" Content="Cars finished: 0" FontSize="10"/>
+                <Label x:Name="connectionLabel" Grid.Column="3" Content="NOT CONNECTED 😞" HorizontalContentAlignment="Right" FontSize="10" Foreground="#FFBF0000"/>
+            </Grid>
+        </Grid>
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0" Height="1" Background="Black" />
+        </Grid>
+        <Grid Grid.Row="2" Margin="0,5,5,5">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,1,0,1">
+                <Label Content="Number of laps for stage 1"/>
+                <TextBox x:Name="stage1LapCountTextBox" Text="30" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="stage1LapCountTextBox_TextChanged"/>
+                <Label Content="Enter 0 to disable this stage" Foreground="#FFBFBFBF"/>
+            </StackPanel>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,1,0,1">
+                <Label Content="Number of laps for stage 2"/>
+                <TextBox x:Name="stage2LapCountTextBox" Text="30" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="stage2LapCountTextBox_TextChanged"/>
+                <Label Content="Enter 0 to disable this stage" Foreground="#FFBFBFBF"/>
+            </StackPanel>
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,1,0,1">
+                <Label Content="Number of laps for stage 3"/>
+                <TextBox x:Name="stage3LapCountTextBox" Text="30" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="stage3LapCountTextBox_TextChanged"/>
+                <Label Content="Enter 0 to disable this stage" Foreground="#FFBFBFBF"/>
+            </StackPanel>
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,1,0,1">
+                <Label Content="Throw flag after this number of cars crosses the finish line"/>
+                <TextBox x:Name="numCarsToWaitForTextBox" Text="10" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="numCarsToWaitForTextBox_TextChanged"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

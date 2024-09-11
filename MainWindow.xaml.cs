@@ -8,7 +8,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 
-using HerboldRacing;
+using IRSDKSharper;
 
 #pragma warning disable CS8602
 #pragma warning disable CS8604
@@ -31,7 +31,7 @@ namespace iRacingStages
 		[GeneratedRegex( @"([-+]?[0-9]*\.?[0-9]+)" )]
 		private static partial Regex TrackLengthRegex();
 
-		readonly IRSDKSharper irsdk = new();
+		readonly IRacingSdk irsdk = new();
 
 		int stage1LapCount = 30;
 		int stage2LapCount = 30;
@@ -102,7 +102,7 @@ namespace iRacingStages
 
 			// maybe session info is not ready yet - check for that
 
-			if ( sessionInfo.SessionInfo == null )
+			if ( sessionInfo?.SessionInfo == null )
 			{
 				UpdateStatusBar();
 
@@ -422,9 +422,7 @@ namespace iRacingStages
 
 				stageWinnersFileText += "\r\n";
 
-				var sessionUniqueID = irsdk.Data.GetInt( "SessionUniqueID" );
-
-				var stageWinnersPath = $"{documentsFolder}{sessionUniqueID}.txt";
+				var stageWinnersPath = $"{documentsFolder}{sessionInfo.WeekendInfo.SubSessionID}.txt";
 
 				File.AppendAllText( stageWinnersPath, stageWinnersFileText );
 

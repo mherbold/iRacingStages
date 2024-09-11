@@ -12,7 +12,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="IRSDKSharper" Version="1.0.15" />
+    <PackageReference Include="IRSDKSharper" Version="1.1.0" />
+    <PackageReference Include="YamlDotNet" Version="16.1.0" />
   </ItemGroup>
 
 </Project>

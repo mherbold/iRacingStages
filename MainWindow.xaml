@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:iRacingStages"
         mc:Ignorable="d"
-        Title="iRacingStages v1.2" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize" Closing="Window_Closing" Topmost="True" WindowStartupLocation="CenterScreen">
+        Title="iRacingStages v1.3" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize" Closing="Window_Closing" Topmost="True" WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

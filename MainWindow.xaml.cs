@@ -58,6 +58,7 @@ namespace iRacingStages
 
 		readonly List<string> chatMessageQueue = [];
 		bool chatWindowOpened = false;
+		bool mainWindowClosed = false;
 
 		[DllImport( "user32.dll", SetLastError = true )]
 		static extern IntPtr FindWindow( string? lpClassName, string lpWindowName );
@@ -81,6 +82,8 @@ namespace iRacingStages
 
 		private void Window_Closing( object? sender, CancelEventArgs e )
 		{
+			mainWindowClosed = true;
+
 			irsdk.Stop();
 		}
 
@@ -91,7 +94,10 @@ namespace iRacingStages
 
 		private void OnStopped()
 		{
-			irsdk.Start();
+			if ( !mainWindowClosed )
+			{
+				irsdk.Start();
+			}
 		}
 
 		private void OnTelemetryData()
@@ -214,10 +220,13 @@ namespace iRacingStages
 
 			if ( currentStage == 3 )
 			{
-				Dispatcher.BeginInvoke( () =>
+				if ( ( chatMessageQueue.Count == 0 ) && !chatWindowOpened )
 				{
-					Close();
-				} );
+					Dispatcher.BeginInvoke( () =>
+					{
+						Close();
+					} );
+				}
 
 				return;
 			}

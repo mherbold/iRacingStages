@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:iRacingStages"
         mc:Ignorable="d"
-        Title="iRacingStages v1.3" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize" Closing="Window_Closing" Topmost="True" WindowStartupLocation="CenterScreen">
+        Title="iRacingStages v1.4" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize" Closing="Window_Closing" Topmost="True" WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -42,6 +42,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,1,0,1">
                 <Label Content="Number of laps for stage 1"/>
@@ -59,8 +60,12 @@
                 <Label Content="Enter 0 to disable this stage" Foreground="#FFBFBFBF"/>
             </StackPanel>
             <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,1,0,1">
-                <Label Content="Throw flag after this number of cars crosses the finish line"/>
+                <Label Content="Max number of stage winners"/>
                 <TextBox x:Name="numCarsToWaitForTextBox" Text="10" Width="50" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" PreviewTextInput="AllowThreeDigitsNumbersOnly" TextChanged="numCarsToWaitForTextBox_TextChanged"/>
+            </StackPanel>
+            <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,1,0,1">
+                <Label Content="Throw the caution flag"/>
+                <CheckBox VerticalAlignment="Center"  Checked="throwTheCautionFlagCheckBox_Checked" Unchecked="throwTheCautionFlagCheckBox_Unchecked" IsChecked="True"/>
             </StackPanel>
         </Grid>
     </Grid>

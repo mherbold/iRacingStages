@@ -37,6 +37,7 @@ namespace iRacingStages
 		int stage2LapCount = 30;
 		int stage3LapCount = 30;
 		int numCarsToWaitFor = 10;
+		bool throwTheCautionFlag = true;
 
 		bool initialized = false;
 
@@ -370,11 +371,17 @@ namespace iRacingStages
 
 					chatMessageQueue.Add( $"/all Stage {currentStage} complete!\r" );
 				}
-				else
+				else if ( throwTheCautionFlag )
 				{
 					// throw the caution flag
 
 					chatMessageQueue.Add( $"!y Stage {currentStage} complete!\r" );
+				}
+				else
+				{
+					// tell drivers the stage is complete
+
+					chatMessageQueue.Add( $"/all Stage {currentStage} complete!\r" );
 				}
 
 				// convert stage winners array into a text string for admin chat
@@ -563,6 +570,16 @@ namespace iRacingStages
 			{
 				numCarsToWaitFor = 10;
 			}
+		}
+
+		private void throwTheCautionFlagCheckBox_Checked( object sender, RoutedEventArgs e )
+		{
+			throwTheCautionFlag = true;
+		}
+
+		private void throwTheCautionFlagCheckBox_Unchecked( object sender, RoutedEventArgs e )
+		{
+			throwTheCautionFlag = false;
 		}
 	}
 }

@@ -38,6 +38,7 @@ namespace iRacingStages
 		int stage3LapCount = 30;
 		int numCarsToWaitFor = 10;
 		bool throwTheCautionFlag = true;
+		bool automaticallyCloseThisApp = true;
 
 		bool initialized = false;
 
@@ -45,6 +46,7 @@ namespace iRacingStages
 
 		IRacingSdkDatum? sessionNumDatum = null;
 		IRacingSdkDatum? sessionFlagsDatum = null;
+		IRacingSdkDatum? carIdxLapDatum = null;
 		IRacingSdkDatum? carIdxLapCompletedDatum = null;
 		IRacingSdkDatum? carIdxLapDistPctDatum = null;
 		IRacingSdkDatum? carIdxPositionDatum = null;
@@ -126,6 +128,7 @@ namespace iRacingStages
 
 				sessionNumDatum = irsdk.Data.TelemetryDataProperties[ "SessionNum" ];
 				sessionFlagsDatum = irsdk.Data.TelemetryDataProperties[ "SessionFlags" ];
+				carIdxLapDatum = irsdk.Data.TelemetryDataProperties[ "CarIdxLap" ];
 				carIdxLapCompletedDatum = irsdk.Data.TelemetryDataProperties[ "CarIdxLapCompleted" ];
 				carIdxLapDistPctDatum = irsdk.Data.TelemetryDataProperties[ "CarIdxLapDistPct" ];
 				carIdxPositionDatum = irsdk.Data.TelemetryDataProperties[ "CarIdxPosition" ];
@@ -152,6 +155,12 @@ namespace iRacingStages
 			// get session flags
 
 			var sessionFlags = irsdk.Data.GetBitField( sessionFlagsDatum );
+
+			// get a list of the current laps for all cars
+
+			int[] carIdxLapList = new int[ carIdxLapDatum.Count ];
+
+			irsdk.Data.GetIntArray( carIdxLapDatum, carIdxLapList, 0, carIdxLapDatum.Count );
 
 			// get a list of the laps completed for all cars
 
@@ -194,6 +203,29 @@ namespace iRacingStages
 				carIdxLapCompletedList[ paceCarIdx ] = -1;
 			}
 
+			// have any cars started lap 1?
+
+			var anyCarStartedLapOne = false;
+
+			for ( var carIdx = 0; carIdx < carIdxLapDatum.Count; carIdx++ )
+			{
+				if ( carIdxLapList[ carIdx ] >= 1 )
+				{
+					anyCarStartedLapOne = true;
+					break;
+				}
+			}
+
+			// if nobody is on lap 1 then reset everything (race has not started yet)
+
+			if ( !anyCarStartedLapOne )
+			{
+				currentStage = 0;
+				completedLaps = 0;
+				numWinnersSoFar = 0;
+				lastStageLapWarningShown = false;
+			}
+
 			// remove cars that are on pit road
 
 			for ( var carIdx = 0; carIdx < carIdxOnPitRoadList.Length; carIdx++ )
@@ -221,7 +253,7 @@ namespace iRacingStages
 
 			if ( currentStage == 3 )
 			{
-				if ( ( chatMessageQueue.Count == 0 ) && !chatWindowOpened )
+				if ( automaticallyCloseThisApp && ( chatMessageQueue.Count == 0 ) && !chatWindowOpened )
 				{
 					Dispatcher.BeginInvoke( () =>
 					{
@@ -580,6 +612,16 @@ namespace iRacingStages
 		private void throwTheCautionFlagCheckBox_Unchecked( object sender, RoutedEventArgs e )
 		{
 			throwTheCautionFlag = false;
+		}
+
+		private void automaticallyCloseThisAppCheckBox_Checked( object sender, RoutedEventArgs e )
+		{
+			automaticallyCloseThisApp = true;
+		}
+
+		private void automaticallyCloseThisAppCheckBox_Unchecked( object sender, RoutedEventArgs e )
+		{
+			automaticallyCloseThisApp = false;
 		}
 	}
 }

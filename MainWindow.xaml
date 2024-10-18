@@ -43,6 +43,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,1,0,1">
                 <Label Content="Number of laps for stage 1"/>
@@ -66,6 +67,10 @@
             <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,1,0,1">
                 <Label Content="Throw the caution flag"/>
                 <CheckBox VerticalAlignment="Center"  Checked="throwTheCautionFlagCheckBox_Checked" Unchecked="throwTheCautionFlagCheckBox_Unchecked" IsChecked="True"/>
+            </StackPanel>
+            <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,1,0,1">
+                <Label Content="Automatically close this app"/>
+                <CheckBox VerticalAlignment="Center"  Checked="automaticallyCloseThisAppCheckBox_Checked" Unchecked="automaticallyCloseThisAppCheckBox_Unchecked" IsChecked="True"/>
             </StackPanel>
         </Grid>
     </Grid>

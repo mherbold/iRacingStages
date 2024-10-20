@@ -79,6 +79,7 @@ namespace iRacingStages
 			irsdk.OnException += OnException;
 			irsdk.OnStopped += OnStopped;
 			irsdk.OnTelemetryData += OnTelemetryData;
+			irsdk.OnDebugLog += OnDebugLog;
 
 			irsdk.Start();
 		}
@@ -481,6 +482,11 @@ namespace iRacingStages
 			}
 
 			UpdateStatusBar();
+		}
+
+		private void OnDebugLog( string message )
+		{
+			Debug.WriteLine( message );
 		}
 
 		private void UpdateStatusBar()
